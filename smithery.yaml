@@ -1,0 +1,18 @@
+# Smithery deploy config (only needed if you list on Smithery, which builds
+# from a public GitHub repo). The npm + official-registry path does NOT need this.
+startCommand:
+  type: stdio
+  configSchema:
+    type: object
+    properties:
+      siteglassApiKey:
+        type: string
+        title: siteglass API key
+        description: Optional. The server auto-creates an account and caches a key if omitted.
+    required: []
+  commandFunction: |-
+    (config) => ({
+      command: 'node',
+      args: ['server.js'],
+      env: config.siteglassApiKey ? { SITEGLASS_API_KEY: config.siteglassApiKey } : {}
+    })

@@ -1,0 +1,6 @@
+{
+  "name": "siteglass",
+  "description": "Agent-driven web QA: scan a site, auto-generate + run E2E test flows, read results + replay.",
+  "version": "0.1.0",
+  "author": { "name": "siteglass.io", "url": "https://siteglass.io" }
+}
