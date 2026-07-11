@@ -1,13 +1,18 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.siteglass/mcp",
-  "description": "Agent-driven web QA: scan a site, auto-generate + run E2E test flows, read results.",
-  "version": "0.1.2",
+  "description": "Archive any URL to a shareable rrweb/pdf/png snapshot + agent-driven web QA (scan, run E2E flows).",
+  "repository": {
+    "url": "https://github.com/siteglassio/siteglass-mcp",
+    "source": "github"
+  },
+  "websiteUrl": "https://siteglass.io",
+  "version": "0.1.5",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "siteglass-mcp",
-      "version": "0.1.2",
+      "version": "0.1.5",
       "transport": { "type": "stdio" },
       "environmentVariables": [
         { "name": "SITEGLASS_API_KEY", "description": "siteglass API key (optional; the server auto-creates an account if absent).", "isRequired": false, "isSecret": true },
