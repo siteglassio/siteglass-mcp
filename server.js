@@ -21,9 +21,12 @@ import { z } from "zod";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
+import { spawn } from "node:child_process";
+import { fileURLToPath } from "node:url";
 
 const BASE = (process.env.SITEGLASS_BASE_URL || "https://siteglass.io").replace(/\/$/, "");
 const KEY_FILE = path.join(os.homedir(), ".siteglass", "key");
+const HERE = path.dirname(fileURLToPath(import.meta.url));
 
 let KEY = process.env.SITEGLASS_API_KEY || null;
 function loadKey() {
@@ -76,7 +79,7 @@ function runSummary(j) {
          `replay: ${BASE}${j.rrweb_url}\nvideo:  ${BASE}${j.video_url}`;
 }
 
-const server = new McpServer({ name: "siteglass", version: "0.1.5" });
+const server = new McpServer({ name: "siteglass", version: "0.2.0" });
 
 server.tool(
   "siteglass_register_site",
@@ -233,6 +236,80 @@ server.tool(
   async ({ message, context }) => {
     const j = await api("POST", "/api/feedback", { message, context });
     return text(j.ok ? "Thanks — feedback received." : `Error: ${j.error}`);
+  }
+);
+
+// --- free local dev-scan --------------------------------------------
+// Runs the bundled crawler on the USER's machine (their browser, their
+// localhost — nothing tunneled to us), then siteglass analyzes the crawl
+// server-side. No account, no ownership verification, no payment.
+function runCrawl(url, maxPages) {
+  return new Promise((resolve, reject) => {
+    const opts = JSON.stringify({ maxPages, maxDepth: 2, timeoutMs: 20000, screenshot: false });
+    const child = spawn(process.execPath, [path.join(HERE, "crawl.cjs"), url, opts], { env: process.env });
+    let out = "", err = "";
+    const killer = setTimeout(() => child.kill("SIGKILL"), 120000);
+    child.stdout.on("data", (d) => (out += d));
+    child.stderr.on("data", (d) => (err += d));
+    child.on("error", (e) => { clearTimeout(killer); reject(e); });
+    child.on("close", () => {
+      clearTimeout(killer);
+      const s = out.trim();
+      if (!s) return reject(new Error(err.trim() || "crawler produced no output"));
+      resolve(s);
+    });
+  });
+}
+
+function installChromium() {
+  return new Promise((resolve, reject) => {
+    const child = spawn("npx", ["--yes", "playwright", "install", "chromium"],
+      { stdio: "ignore", shell: process.platform === "win32" });
+    child.on("error", reject);
+    child.on("close", (c) => (c === 0 ? resolve() : reject(new Error("browser install failed"))));
+  });
+}
+
+server.tool(
+  "siteglass_scan_local",
+  "Scan a web app you're building — FREE: no account, no ownership verification, no payment. Runs a headless browser on YOUR machine to crawl the URL (works on http://localhost:PORT or any URL your machine can reach — nothing is tunneled to siteglass), then siteglass analyzes the crawl server-side and returns real findings: broken links/assets, console errors, accessibility & SEO issues, forms worth testing — plus a plain-English report. Point it at your local dev server right after your agent builds or changes the app. (First run may download a headless Chromium, ~1 min.)",
+  {
+    url: z.string().describe("App URL to scan, e.g. http://localhost:3000"),
+    max_pages: z.number().int().min(1).max(30).optional().describe("Max same-origin pages to crawl (default 10)"),
+  },
+  async ({ url, max_pages }) => {
+    const maxPages = max_pages || 10;
+    let raw;
+    try {
+      raw = await runCrawl(url, maxPages);
+    } catch (e) {
+      return text(`Local crawl failed: ${e.message}\nIs a dev server actually running at ${url}?`);
+    }
+    let parsed;
+    try { parsed = JSON.parse(raw); } catch { parsed = null; }
+    // If the crawler couldn't launch a browser, install one on demand and retry.
+    if (parsed && parsed.ok === false && /executable doesn'?t exist|playwright install|\.launch/i.test(parsed.error || "")) {
+      try {
+        await installChromium();
+        raw = await runCrawl(url, maxPages);
+        parsed = JSON.parse(raw);
+      } catch (e) {
+        return text(`Needed a headless browser but couldn't set one up: ${e.message}\nRun this once, then retry: npx playwright install chromium`);
+      }
+    }
+    if (parsed && parsed.ok === false) return text(`Crawl error: ${parsed.error}`);
+    let j;
+    try {
+      const r = await fetch(`${BASE}/api/local-scan`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: raw,
+      });
+      j = await r.json();
+    } catch (e) { return text(`Analysis request failed: ${e.message}`); }
+    if (!j || !j.ok) return text(`Analysis error: ${(j && j.error) || "unknown"}`);
+    const findings = (j.findings || [])
+      .map((f) => `  [${f.severity}/${f.kind}] ${f.title}${f.detail ? "\n      " + f.detail : ""}`)
+      .join("\n") || "  (no issues found)";
+    return text(`siteglass local scan of ${url} — ${j.count} finding(s):\n\n${findings}\n\n--- report ---\n${j.report}`);
   }
 );
 

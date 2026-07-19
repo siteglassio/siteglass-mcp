@@ -1,7 +1,7 @@
 {
   "name": "siteglass-mcp",
-  "version": "0.1.5",
-  "description": "MCP server for siteglass.io \u2014 agent-driven web QA: register a site, scan it, auto-generate and run E2E test flows, read results + replay. Pay-per-action in credits over Bitcoin Lightning.",
+  "version": "0.2.0",
+  "description": "MCP server for siteglass.io \u2014 free local dev-scan of the app you're building (runs a browser on YOUR machine, no account/verification/payment), plus agent-driven web QA, E2E flows, and URL\u2192snapshot archiving.",
   "type": "module",
   "bin": {
     "siteglass-mcp": "server.js"
@@ -9,6 +9,8 @@
   "main": "server.js",
   "files": [
     "server.js",
+    "crawl.cjs",
+    "vendor/axe.min.js",
     "README.md"
   ],
   "engines": {
@@ -41,6 +43,7 @@
   "license": "MIT",
   "mcpName": "io.siteglass/mcp",
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.0.0"
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "playwright": "^1.40.0"
   }
 }
